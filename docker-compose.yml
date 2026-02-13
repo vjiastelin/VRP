@@ -1,0 +1,13 @@
+services:
+  backend:
+    build: .
+    platform: linux/amd64
+    ports:
+      - "8003:8000"
+
+  frontend:
+    build:
+      context: ./frontend
+    platform: linux/amd64
+    ports:
+      - "8083:80"
