@@ -85,7 +85,7 @@ function App() {
 
   const handlePointClick = (newPoint) => {
     // Add demand property to the new point
-    const pointWithDemand = { ...newPoint, demand: 1 }
+    const pointWithDemand = { ...newPoint, demand: 0 }
     setPoints([...points, pointWithDemand])
   }
 
@@ -148,7 +148,7 @@ function App() {
 
     try {
       // Use the hostname from user's last edit
-      const response = await axios.post('http://mow2ai1.aeroclub.int:8003/solve', {
+      const response = await axios.post('/solve', {
         locations: locations,
         vehicles: vehicles
       })
