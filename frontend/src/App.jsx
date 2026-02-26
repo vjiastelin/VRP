@@ -75,6 +75,24 @@ function RouteVisualization({ solution, points }) {
   );
 }
 
+function MapBoundsUpdater({ points }) {
+  const map = useMapEvents({});
+  useEffect(() => {
+    if (points && points.length > 0) {
+      const bounds = L.latLngBounds(points.map(p => {
+        // Handle both simple {lat, lng} and structure from API {lat, lon}
+        const lat = p.lat;
+        const lng = p.lng !== undefined ? p.lng : p.lon;
+        return [lat, lng];
+      }));
+      if (bounds.isValid()) {
+        map.fitBounds(bounds, { padding: [50, 50] });
+      }
+    }
+  }, [points, map]);
+  return null;
+}
+
 function App() {
   const [points, setPoints] = useState([])
   const [numVehicles, setNumVehicles] = useState(1)
@@ -317,6 +335,7 @@ function App() {
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
+          <MapBoundsUpdater points={points} />
           {!solution && <LocationMarker points={points} setPoints={handlePointClick} />}
           <RouteVisualization solution={solution} points={points} />
         </MapContainer>
