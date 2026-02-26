@@ -8,7 +8,9 @@ dependencies = [
     "ortools",
     "requests",
     "fastapi",
-    "uvicorn"
+    "uvicorn",
+    "sqlalchemy>=2.0.47",
+    "psycopg2-binary>=2.9.11",
 ]
 dev-dependencies = [
     "httpx",

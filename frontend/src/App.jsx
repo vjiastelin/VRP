@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMapEvents, Tooltip, CircleMarker } from 'react-leaflet'
 import axios from 'axios'
 import 'leaflet/dist/leaflet.css'
@@ -83,6 +83,42 @@ function App() {
   const [solution, setSolution] = useState(null)
   const [loading, setLoading] = useState(false)
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get('id');
+    if (id) {
+      loadSolution(id);
+    }
+  }, []);
+
+  const loadSolution = async (id) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await axios.get(`/solve?id=${id}`);
+      const data = response.data;
+      setSolution(data);
+      if (data.request) {
+        const loadedPoints = data.request.locations.map(l => ({ lat: l.lat, lng: l.lon, demand: l.demand }));
+        setPoints(loadedPoints);
+        if (data.request.vehicles && data.request.vehicles.length > 0) {
+          setNumVehicles(data.request.vehicles.length);
+          const caps = data.request.vehicles.map(v => v.capacity);
+          if (new Set(caps).size === 1) {
+            setVehicleCapacity(caps[0]);
+          } else {
+            setVehicleCapacity(caps.join(', '));
+          }
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      setError(err.response?.data?.detail || "Failed to load solution from ID.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handlePointClick = (newPoint) => {
     // Add demand property to the new point
     const pointWithDemand = { ...newPoint, demand: 0 }
@@ -115,9 +151,7 @@ function App() {
       demand: p.demand
     }));
 
-    // Prepare Vehicles
-    // Parse capacity input: "10, 20" -> [10, 20]
-    // If single value "50", and numVehicles 2 -> [50, 50]
+
     let capacities = [];
     if (vehicleCapacity.toString().includes(',')) {
       capacities = vehicleCapacity.toString().split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
@@ -127,10 +161,6 @@ function App() {
         capacities = Array(parseInt(numVehicles)).fill(cap);
       }
     }
-
-    // If user entered fewer capacities than numVehicles, cycle or fill with last?
-    // Let's strict: if comma list, ignore numVehicles or require match.
-    // Better UX: If comma list, use that size as numVehicles. If single, use numVehicles.
 
     let vehicles = [];
     if (vehicleCapacity.toString().includes(',')) {
@@ -147,8 +177,12 @@ function App() {
     }
 
     try {
+      const params = new URLSearchParams(window.location.search);
+      const id = params.get('id');
+      const url = id ? `/solve?id=${id}` : '/solve';
+
       // Use the hostname from user's last edit
-      const response = await axios.post('/solve', {
+      const response = await axios.post(url, {
         locations: locations,
         vehicles: vehicles
       })

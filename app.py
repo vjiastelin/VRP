@@ -1,11 +1,34 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from typing import Optional
 from ortools.constraint_solver import routing_enums_pb2
 from ortools.constraint_solver import pywrapcp
 import requests
+import os
+from sqlalchemy import create_engine, Column, Integer, JSON
+from sqlalchemy.orm import sessionmaker, declarative_base, Session
 
 app = FastAPI()
+
+DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./vrp.db")
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
+
+class VrpRequestRecord(Base):
+    __tablename__ = "vrp_requests"
+    id = Column(Integer, primary_key=True, index=True)
+    data = Column(JSON, nullable=False)
+
+Base.metadata.create_all(bind=engine)
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 app.add_middleware(
     CORSMiddleware,
@@ -177,8 +200,43 @@ import traceback
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+@app.post("/requests")
+def create_request(request: VrpRequest, db: Session = Depends(get_db)):
+    db_request = VrpRequestRecord(data=request.model_dump())
+    db.add(db_request)
+    db.commit()
+    db.refresh(db_request)
+    return {"id": db_request.id}
+
+@app.get("/solve")
+def solve_get(id: int, db: Session = Depends(get_db)):
+    db_record = db.query(VrpRequestRecord).filter(VrpRequestRecord.id == id).first()
+    if not db_record:
+        raise HTTPException(status_code=404, detail="Request not found")
+    request = VrpRequest(**db_record.data)
+    result = perform_solve(request)
+    result["id"] = id
+    return result
+
 @app.post("/solve")
-def solve_endpoint(request: VrpRequest):
+def solve_post(request: VrpRequest, id: Optional[int] = None, db: Session = Depends(get_db)):
+    if id is not None:
+        db_request = db.query(VrpRequestRecord).filter(VrpRequestRecord.id == id).first()
+        if db_request:
+            # Update existing
+            db_request.data = request.model_dump()
+        else:
+            # Create new with specific ID
+            db_request = VrpRequestRecord(id=id, data=request.model_dump())
+            db.add(db_request)
+        db.commit()
+    
+    result = perform_solve(request)
+    if id is not None:
+        result["id"] = id
+    return result
+
+def perform_solve(request: VrpRequest):
     try:
         all_routes = []
         current_locations = request.locations
@@ -227,7 +285,11 @@ def solve_endpoint(request: VrpRequest):
             trip_id += 1
         
         total_distance = sum(route.get("distance", 0) for route in all_routes)
-        return {"routes": all_routes, "total_distance": total_distance}
+        return {
+            "routes": all_routes, 
+            "total_distance": total_distance,
+            "request": request.model_dump()
+        }
     except HTTPException:
         # Re-raise HTTPExceptions as is (e.g. 404 No Solution)
         raise
