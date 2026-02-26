@@ -207,16 +207,12 @@ def create_request(request: VrpRequest, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(db_request)
     return {"id": db_request.id}
-
-@app.get("/solve")
-def solve_get(id: int, db: Session = Depends(get_db)):
+@app.get("/load")
+def load_request(id: int, db: Session = Depends(get_db)):
     db_record = db.query(VrpRequestRecord).filter(VrpRequestRecord.id == id).first()
     if not db_record:
         raise HTTPException(status_code=404, detail="Request not found")
-    request = VrpRequest(**db_record.data)
-    result = perform_solve(request)
-    result["id"] = id
-    return result
+    return db_record.data
 
 @app.post("/solve")
 def solve_post(request: VrpRequest, id: Optional[int] = None, db: Session = Depends(get_db)):

@@ -113,26 +113,52 @@ function App() {
     setLoading(true);
     setError(null);
     try {
-      const response = await axios.get(`/solve?id=${id}`);
-      const data = response.data;
-      setSolution(data);
-      if (data.request) {
-        const loadedPoints = data.request.locations.map(l => ({ lat: l.lat, lng: l.lon, demand: l.demand }));
+      // 1. Load request
+      const reqResponse = await axios.get(`/api/load?id=${id}`);
+      const requestData = reqResponse.data;
+
+      let loadedPoints = [];
+      let loadedVehicles = [];
+
+      if (requestData.locations) {
+        loadedPoints = requestData.locations.map(l => ({ lat: l.lat, lng: l.lon, demand: l.demand }));
         setPoints(loadedPoints);
-        if (data.request.vehicles && data.request.vehicles.length > 0) {
-          setNumVehicles(data.request.vehicles.length);
-          const caps = data.request.vehicles.map(v => v.capacity);
-          if (new Set(caps).size === 1) {
-            setVehicleCapacity(caps[0]);
-          } else {
-            setVehicleCapacity(caps.join(', '));
-          }
+      }
+
+      if (requestData.vehicles && requestData.vehicles.length > 0) {
+        loadedVehicles = requestData.vehicles;
+        setNumVehicles(loadedVehicles.length);
+        const caps = loadedVehicles.map(v => v.capacity);
+        if (new Set(caps).size === 1) {
+          setVehicleCapacity(caps[0]);
+        } else {
+          setVehicleCapacity(caps.join(', '));
         }
       }
+
+      // 2. Call solve explicitly with loaded data
+      // We pass the ID so the backend knows we're working on it, 
+      // but since we want the map to trigger its bounds update, 
+      // we let React state flush, then solve.
+      setTimeout(async () => {
+        try {
+          const url = `/api/solve?id=${id}`;
+          const solveResponse = await axios.post(url, {
+            locations: requestData.locations,
+            vehicles: loadedVehicles
+          });
+          setSolution(solveResponse.data);
+        } catch (solveErr) {
+          console.error(solveErr);
+          setError(solveErr.response?.data?.detail || "Failed to solve request.");
+        } finally {
+          setLoading(false);
+        }
+      }, 500);
+
     } catch (err) {
       console.error(err);
-      setError(err.response?.data?.detail || "Failed to load solution from ID.");
-    } finally {
+      setError(err.response?.data?.detail || "Failed to load request from ID.");
       setLoading(false);
     }
   };
@@ -197,7 +223,7 @@ function App() {
     try {
       const params = new URLSearchParams(window.location.search);
       const id = params.get('id');
-      const url = id ? `/solve?id=${id}` : '/solve';
+      const url = id ? `/api/solve?id=${id}` : '/api/solve';
 
       // Use the hostname from user's last edit
       const response = await axios.post(url, {
