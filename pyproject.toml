@@ -12,7 +12,8 @@ dependencies = [
     "sqlalchemy>=2.0.47",
     "psycopg2-binary>=2.9.11",
 ]
-dev-dependencies = [
+[dependency-groups]
+dev = [
     "httpx",
-    "pytest"
+    "pytest>=9.0.2",
 ]

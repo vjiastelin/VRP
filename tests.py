@@ -40,39 +40,27 @@ def test_solve_with_demands():
     assert data['routes'][0]['distance'] > 0
 
 def test_solve_capacity_constraint():
-    # 3 points = 1 depot + 2 customers
-    # Each customer has demand 30. Vehicle capacity 50.
-    # Total demand 60 > 50. Needs 2 vehicles.
-    response = client.post("/solve", json={
-        "locations": [
-             {"lat": 52.517037, "lon": 13.388860, "demand": 0},
-             {"lat": 52.529407, "lon": 13.397634, "demand": 30},
-             {"lat": 52.523219, "lon": 13.428555, "demand": 30}
-        ],
-        "vehicles": [
-            {"id": 0, "capacity": 30},
-            {"id": 1, "capacity": 50}
-        ]
-    })
+
+    payload = {
+    "locations": [
+        {"lat": 50.08804, "lon": 14.42076, "demand": 0},
+        {"lat": 50.09000, "lon": 14.42000, "demand": 30},
+        {"lat": 50.09100, "lon": 14.41000, "demand": 5}
+    ],
+    "vehicles": [
+        {"id": 1, "capacity": 15},
+        {"id": 2, "capacity": 15}
+    ]
+    }
+    response = client.post("/solve", json=payload)
     
     if response.status_code == 500:
         pytest.skip("OSRM service might be down")
         
     assert response.status_code == 200
     data = response.json()
-    
-    routes = [r for r in data['routes'] if len(r['route']) > 2] # Filter empty Routes (0->0)
-    assert len(routes) == 2
-    # Verify both vehicles are used or at least valid solution provided
-    # Note: OR-Tools might return empty route if vehicle not used, but here they MUST be used to satisfy demands.
-    # Actually, one vehicle will take one customer (30), the other takes the other (30).
-    used_vehicles = [r for r in data['routes'] if len(r['route']) > 2] # > 2 because depot -> node -> depot is length 3? 
-    # app.py: route_nodes.append(node_index), append(0) at end.
-    # Standard route: 0 -> A -> 0
-    
-    # Let's just check if we have results.
-    assert "objective" in data
-
+    assert len(data['routes']) == 3
+ 
 if __name__ == "__main__":
     # Manually run tests if pytest not available
     try:
@@ -80,8 +68,8 @@ if __name__ == "__main__":
         print("test_validation_error PASSED")
         test_solve_with_demands()
         print("test_solve_with_demands PASSED")
-        # test_solve_capacity_constraint()
-        # print("test_solve_capacity_constraint PASSED")
+        test_solve_capacity_constraint()
+        print("test_solve_capacity_constraint PASSED")
     except Exception as e:
         print(f"FAILED: {e}")
         import traceback

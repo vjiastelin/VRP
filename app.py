@@ -234,10 +234,34 @@ def solve_post(request: VrpRequest, id: Optional[int] = None, db: Session = Depe
 
 def perform_solve(request: VrpRequest):
     try:
+        if not request.vehicles:
+            raise HTTPException(status_code=400, detail="No vehicles provided")
+            
+        valid_vehicles = [v for v in request.vehicles if v.capacity > 0]
+        if not valid_vehicles:
+            raise HTTPException(status_code=400, detail="No valid vehicles with capacity > 0 provided")
+            
+        min_capacity = min(v.capacity for v in valid_vehicles)
+        max_capacity = max(v.capacity for v in valid_vehicles)
+
+        expanded_locations = []
+        current_indices = []
+
+        for i, loc in enumerate(request.locations):
+            if i == 0 or loc.demand <= max_capacity:
+                expanded_locations.append(loc)
+                current_indices.append(i)
+            else:
+                remaining_demand = loc.demand
+                while remaining_demand > 0:
+                    chunk = min(remaining_demand, min_capacity)
+                    new_loc = Location(lat=loc.lat, lon=loc.lon, demand=chunk)
+                    expanded_locations.append(new_loc)
+                    current_indices.append(i)
+                    remaining_demand -= chunk
+
         all_routes = []
-        current_locations = request.locations
-        # Keep track of original indices to map back result
-        current_indices = list(range(len(request.locations)))
+        current_locations = expanded_locations
         
         trip_id = 1
         max_trips = 5
